@@ -8,7 +8,7 @@ from typing import Any
 import yaml
 
 from agent_loader_bench.config import Settings, load_settings
-from agent_loader_bench.llm import LLMClient, OpenAIResponsesClient
+from agent_loader_bench.llm import AnthropicMessagesClient, LLMClient, OpenAIResponsesClient
 from agent_loader_bench.loaders import (
     FSDirectContextLoader,
     HybridContextLoader,
@@ -201,6 +201,11 @@ def _resolve_llm_client(
         return None
     if llm_client is not None:
         return llm_client
+    if settings.llm_provider == "anthropic":
+        return AnthropicMessagesClient(
+            api_key=settings.anthropic_api_key,
+            model=settings.llm_model,
+        )
     return OpenAIResponsesClient(
         api_key=settings.openai_api_key,
         model=settings.llm_model,

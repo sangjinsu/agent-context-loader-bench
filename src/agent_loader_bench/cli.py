@@ -13,6 +13,7 @@ from agent_loader_bench.loaders import (
     build_sqlite_fts_index,
     build_sqlite_metadata_index,
 )
+from agent_loader_bench.report import aggregate_traces, format_table
 from agent_loader_bench.runner import inspect_request, run_dataset
 
 
@@ -56,6 +57,12 @@ def main(argv: list[str] | None = None, *, repo_root: Path | None = None) -> int
             print(json.dumps(result, indent=2, sort_keys=True))
             return 0
 
+        if args.command == "compare":
+            trace_path = Path(args.trace) if args.trace else settings.trace_path
+            stats = aggregate_traces(trace_path)
+            print(format_table(stats))
+            return 0
+
         raise ValueError(f"Unknown command: {args.command}")
     except Exception as error:
         print(f"error: {error}", file=sys.stderr)
@@ -85,6 +92,9 @@ def build_parser() -> argparse.ArgumentParser:
     run_parser.add_argument("--loader", required=True)
     run_parser.add_argument("--dataset", default="datasets/requests.yml")
     run_parser.add_argument("--live-llm", action="store_true")
+
+    compare_parser = subparsers.add_parser("compare")
+    compare_parser.add_argument("--trace", default=None)
 
     return parser
 

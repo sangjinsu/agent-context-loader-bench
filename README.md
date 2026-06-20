@@ -54,6 +54,12 @@ python -m agent_loader_bench run \
   --dataset datasets/requests.yml
 ```
 
+Compare loaders across a trace file (deduplicates by `run_id`, latest wins):
+
+```bash
+python -m agent_loader_bench compare --trace .agentdb/traces.jsonl
+```
+
 ## Loader Strategies
 
 The project compares these strategies against the same model, task dataset, and Markdown corpus:
@@ -81,6 +87,8 @@ OPENAI_API_KEY=... python -m agent_loader_bench run \
 ```
 
 Use the same model, temperature, task dataset, and corpus when comparing loaders. Change only the loader strategy.
+
+The provider is inferred from `LLM_MODEL`: a `claude-*` model routes to the Anthropic client (`ANTHROPIC_API_KEY` and the `anthropic` extra required: `pip install -e '.[anthropic]'`); anything else uses OpenAI. Set `LLM_PROVIDER=openai|anthropic` to override. Claude models are called without sampling parameters (Opus 4.8 rejects `temperature`/`top_p`).
 
 ## Testing
 
