@@ -1,0 +1,34 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agent-context-loader-bench"
+version = "0.1.0"
+description = "Benchmark context loading strategies for agent skill corpora."
+requires-python = ">=3.11"
+dependencies = [
+  "openai>=1.0.0",
+  "PyYAML>=6.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0",
+  "ruff>=0.8",
+]
+
+[tool.pytest.ini_options]
+markers = [
+  "live_llm: tests that exercise the opt-in live LLM code path with fakes only",
+]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 120
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]

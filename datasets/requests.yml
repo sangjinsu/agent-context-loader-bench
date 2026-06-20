@@ -1,0 +1,81 @@
+- id: req.vllm.benchmark.exact
+  user_request: "Add a vLLM benchmark that compares throughput and latency."
+  expected_skills:
+    - skill.vllm.benchmark
+  expected_sections:
+    - When to use
+    - Inputs
+    - Steps
+    - Safety and Constraints
+  task_type: benchmark
+  difficulty: easy
+  notes: Exact keyword match for the vLLM benchmark skill.
+
+- id: req.vllm.benchmark.semantic
+  user_request: "Compare how many tokens per second the model can process and how long users wait for responses."
+  expected_skills:
+    - skill.vllm.benchmark
+  expected_sections:
+    - When to use
+    - Steps
+    - Output
+  task_type: benchmark
+  difficulty: medium
+  notes: Semantic match with throughput and latency wording but no direct vLLM keyword.
+
+- id: req.loader.ambiguous
+  user_request: "Make the agent loader examples easier to understand before I run experiments."
+  expected_skills:
+    - skill.docs.writing
+  expected_sections:
+    - When to use
+    - Inputs
+    - Steps
+  task_type: docs
+  difficulty: medium
+  notes: Ambiguous request that should prefer documentation work over benchmark implementation.
+
+- id: req.docs.troubleshooting.multi_skill
+  user_request: "Update the README troubleshooting notes for failed SQLite index builds and include a short guide."
+  expected_skills:
+    - skill.docs.writing
+    - skill.troubleshooting
+  expected_sections:
+    - When to use
+    - Steps
+    - Safety and Constraints
+  task_type: docs
+  difficulty: medium
+  notes: Multi-skill request requiring both technical writing and troubleshooting context.
+
+- id: req.vllm.wrong_skill_trap
+  user_request: "Write documentation explaining benchmark results without adding a vLLM benchmark implementation."
+  expected_skills:
+    - skill.docs.writing
+  expected_sections:
+    - When to use
+    - Steps
+    - Safety and Constraints
+  task_type: docs
+  difficulty: hard
+  notes: Wrong-skill trap because benchmark and vLLM terms appear, but the task is documentation only.
+
+- id: req.unrelated.no_match
+  user_request: "Compose a lullaby for a string quartet."
+  expected_skills: []
+  expected_sections: []
+  task_type: music
+  difficulty: easy
+  notes: Unrelated no-match request.
+
+- id: req.troubleshooting.local_only_conflict
+  user_request: "Troubleshoot a loader failure using a local-only repro; do not add Docker setup."
+  expected_skills:
+    - skill.troubleshooting
+  expected_sections:
+    - When to use
+    - Steps
+    - Safety and Constraints
+  task_type: troubleshooting
+  difficulty: hard
+  notes: Conflict case covering local-only execution versus Docker-style examples.
