@@ -1,5 +1,7 @@
 # Agent Context Loader Bench
 
+*English · [한국어](README.ko.md)*
+
 Agent Context Loader Bench compares how different context loading strategies affect a real LLM agent working from the same instruction corpus.
 
 The benchmark is about agent behavior, not raw database throughput. A useful loader should select the right skill text, avoid irrelevant tokens, keep behavior explainable, and help the agent complete the requested task reliably.
