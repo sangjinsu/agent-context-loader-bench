@@ -10,7 +10,7 @@ from .sqlite_fts import (
     sqlite_fts5_available,
 )
 from .sqlite_metadata import SQLiteMetadataContextLoader, build_sqlite_metadata_index
-from .vector_search import VectorContextLoader, build_deterministic_vector_index
+from .vector_search import VectorContextLoader, build_deterministic_vector_index, build_vector_index
 
 __all__ = [
     "ContextLoader",
@@ -28,5 +28,6 @@ __all__ = [
     "build_sqlite_fts_index",
     "build_json_document_store",
     "build_deterministic_vector_index",
+    "build_vector_index",
     "sqlite_fts5_available",
 ]

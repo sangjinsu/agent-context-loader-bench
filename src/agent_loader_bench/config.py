@@ -13,6 +13,10 @@ class Settings:
     llm_provider: str
     llm_model: str
     llm_temperature: float
+    embedding_provider: str
+    embedding_model: str
+    embedding_dimensions: int | None
+    embedding_min_score: float | None
     agentdb_path: Path
     trace_path: Path
 
@@ -28,9 +32,23 @@ def load_settings(repo_root: Path | None = None) -> Settings:
         llm_provider=_resolve_provider(_optional_setting("LLM_PROVIDER", dotenv), llm_model),
         llm_model=llm_model,
         llm_temperature=float(_setting("LLM_TEMPERATURE", dotenv, "0")),
+        embedding_provider=_setting("EMBEDDING_PROVIDER", dotenv, "openai").strip().lower(),
+        embedding_model=_setting("EMBEDDING_MODEL", dotenv, "text-embedding-3-small"),
+        embedding_dimensions=_optional_int("EMBEDDING_DIMENSIONS", dotenv),
+        embedding_min_score=_optional_float("EMBEDDING_MIN_SCORE", dotenv),
         agentdb_path=_resolve_path(root, _setting("AGENTDB_PATH", dotenv, ".agentdb/index.sqlite")),
         trace_path=_resolve_path(root, _setting("TRACE_PATH", dotenv, ".agentdb/traces.jsonl")),
     )
+
+
+def _optional_int(name: str, dotenv: dict[str, str]) -> int | None:
+    value = _optional_setting(name, dotenv)
+    return int(value) if value else None
+
+
+def _optional_float(name: str, dotenv: dict[str, str]) -> float | None:
+    value = _optional_setting(name, dotenv)
+    return float(value) if value else None
 
 
 def _resolve_provider(explicit: str | None, model: str) -> str:

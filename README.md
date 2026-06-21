@@ -72,10 +72,19 @@ The project compares these strategies against the same model, task dataset, and 
 - `sqlite_fts`: use SQLite full-text search over titles, descriptions, and bodies.
 - `sqlite_fts_section`: use full-text search and assemble only relevant sections.
 - `json_document`: use structured JSON documents derived from Markdown.
-- `vector_search`: use deterministic vector-like matching for semantic requests.
+- `vector_search`: embed documents and queries, rank by cosine similarity.
 - `hybrid`: combine simpler strategies after their behavior is tested.
 
 Indexes must be explicitly rebuilt when the Markdown corpus changes.
+
+### Embeddings (vector_search)
+
+`vector_search` uses an embedding provider selected by `EMBEDDING_PROVIDER`:
+
+- `openai` (default): real embeddings via `EMBEDDING_MODEL` (default `text-embedding-3-small`). `build-index --backend vector|all` and loading the index require `OPENAI_API_KEY`.
+- `hashing`: offline, deterministic feature-hashing (no network) — use for fully offline runs and reproducible tests.
+
+The index records the provider/model it was built with, and the loader embeds the query with that same model, so rebuild the index after changing the provider.
 
 ## Live LLM Opt-In
 

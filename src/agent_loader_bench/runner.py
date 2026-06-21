@@ -56,7 +56,7 @@ def load_dataset(path: Path) -> list[DatasetItem]:
     return items
 
 
-def create_loader(loader_name: str, repo_root: Path):
+def create_loader(loader_name: str, repo_root: Path, settings: Settings | None = None):
     root = Path(repo_root)
     loaders = {
         "fs_direct": FSDirectContextLoader(root),
@@ -65,8 +65,8 @@ def create_loader(loader_name: str, repo_root: Path):
         "sqlite_fts": SQLiteFTSContextLoader(root),
         "sqlite_fts_section": SQLiteFTSSectionContextLoader(root),
         "json_document": JSONDocumentContextLoader(root),
-        "vector_search": VectorContextLoader(root),
-        "hybrid": HybridContextLoader(root),
+        "vector_search": VectorContextLoader(root, settings=settings),
+        "hybrid": HybridContextLoader(root, settings=settings),
     }
     try:
         return loaders[loader_name]
@@ -113,7 +113,7 @@ def inspect_request(
 ) -> dict[str, Any]:
     dataset = load_dataset(dataset_path)
     item = get_dataset_item(dataset, request_id)
-    loader = create_loader(loader_name, repo_root)
+    loader = create_loader(loader_name, repo_root, load_settings(repo_root))
     loaded_context = loader.load(item.user_request, task_type=item.task_type)
     evaluation = evaluate_loaded_context(item, loaded_context)
     return {
@@ -138,7 +138,7 @@ def run_dataset(
 ) -> dict[str, Any]:
     resolved_settings = settings or load_settings(repo_root)
     dataset = load_dataset(dataset_path)
-    loader = create_loader(loader_name, repo_root)
+    loader = create_loader(loader_name, repo_root, resolved_settings)
     resolved_trace_path = trace_path or resolved_settings.trace_path
     client = _resolve_llm_client(
         live_llm=live_llm,

@@ -1,7 +1,8 @@
 # 로더 벤치마크 리포트
 
-- **날짜:** 2026-06-20
-- **모델:** `claude-opus-4-8` (live, Anthropic 폴백 경로)
+- **날짜:** 2026-06-20 (최초) · 2026-06-21 (vector_search 실제 임베딩으로 갱신)
+- **LLM:** `claude-opus-4-8` (live, Anthropic 폴백 경로)
+- **임베딩(vector_search):** OpenAI `text-embedding-3-small` (1536차원)
 - **데이터셋:** `datasets/requests.yml` (7개 요청)
 - **코퍼스:** 스킬 3종 + 위키 노트 3종 (Markdown이 source of truth)
 - **호출 수:** 8개 로더 × 7개 요청 = 56회 live LLM 호출, 전부 완료
@@ -74,11 +75,26 @@ python -m agent_loader_bench compare --trace .agentdb/bench-traces.jsonl
 
 즉 "LLM이 올바른 컨텍스트를 받았는가"를 결정적으로 측정한다. `llm_completed`는 실제 Claude 호출 발생 여부를 보조 신호로 별도 추적한다. 평가가 retrieval 기반이므로 Opus 4.8을 temperature 없이 호출해도 결과는 재현 가능하다.
 
+### 1.7 vector_search 실제 임베딩 업그레이드 (2026-06-21)
+
+초기 `vector_search`는 임베딩 모델이 아니라 24차원 해싱 트릭이라 3/7로 최하위였다. 이를 **OpenAI 실제 임베딩**(`text-embedding-3-small`, 1536차원)으로 교체했다.
+
+- `embeddings/` 추상화 추가(provider: `hashing` | `openai`). 로더는 **인덱스에 기록된 provider/model로 쿼리를 임베딩**해 문서·쿼리 모델 불일치를 차단한다.
+- 임베딩 인덱스 재빌드(OpenAI 호출 ~6 문서):
+  ```bash
+  EMBEDDING_PROVIDER=openai python -m agent_loader_bench build-index --backend vector
+  ```
+- 그 뒤 `vector_search`·`hybrid`만 `--live-llm` 재실행해 표를 갱신했다(`compare`가 `run_id`로 dedupe).
+
+**임계값 튜닝.** 실제 임베딩은 무관 텍스트도 절대 코사인이 ~0.2라, 해싱 기준(무관→0)으로 맞춘 바닥(0.2)이 너무 느슨했다. `req.unrelated.no_match`("자장가")가 `skill.vllm.benchmark`에 **0.2042**로 매칭돼 오선택됐고, 이 신호가 `hybrid`로 새어들어 7/7→6/7 회귀를 일으켰다. provider별 바닥을 도입(hashing 0.2 / openai **0.28**, `EMBEDDING_MIN_SCORE`로 오버라이드)하자 no_match(0.2042<0.28)는 선택 없음으로, semantic(0.348)·exact(0.677)는 유지됐다.
+
 ---
 
 ## 2. 결과
 
 ### 2.1 집계 표
+
+실제 OpenAI 임베딩 + provider별 임계값(openai 0.28) 적용 후 최종 표:
 
 ```
 loader                 success    rate  avg_tokens  llm_done
@@ -90,22 +106,21 @@ json_document              6/7     86%        1066         7
 manifest_json              6/7     86%        1066         7
 sqlite_metadata            6/7     86%        1066         7
 fs_direct                  6/7     86%        1126         7
-vector_search              3/7     43%         901         7
+vector_search              5/7     71%         776         7
 ```
 
 - `success`/`rate`: 로더 선택 정확도, `avg_tokens`: 평균 `context_token_estimate`, `llm_done`: live Claude 호출 완료 수.
+- 해싱 → 실제 임베딩 변화: **vector_search 3/7 → 5/7**(토큰 901 → 776). `hybrid`는 7/7 유지(튜닝 전 일시적으로 6/7로 회귀했다가 임계값 0.28로 복구).
 
-### 2.2 요청별 실패 분석
+### 2.2 요청별 실패 분석 (실제 임베딩 기준)
 
 | 요청 | 실패한 로더 |
 |---|---|
 | `req.loader.ambiguous` | fs_direct, json_document, manifest_json, sqlite_metadata, vector_search |
-| `req.docs.troubleshooting.multi_skill` | vector_search |
-| `req.vllm.benchmark.semantic` | vector_search |
 | `req.vllm.wrong_skill_trap` | vector_search |
 
 - 6/7 그룹(fs_direct, json_document, manifest_json, sqlite_metadata)은 **모호 요청(`req.loader.ambiguous`) 하나만** 실패 — 의도된 baseline 판별 케이스.
-- `vector_search`는 위 모호 요청에 더해 multi_skill·semantic·wrong_skill_trap까지 실패. 요청별로 보면 ambiguous·multi_skill에서 `skill.troubleshooting`을 엉뚱하게 선택하고, semantic·trap에서 과선택했다 — AGENTS.md가 경고한 non-obvious 오매칭.
+- `vector_search`(5/7)는 실제 임베딩으로 semantic·multi_skill·no_match를 해결했고, 남은 2건은 **진짜 의미 불일치**다: `req.loader.ambiguous`는 `skill.troubleshooting`을, `req.vllm.wrong_skill_trap`은 `skill.vllm.benchmark`를 선택(기대는 둘 다 `skill.docs.writing`). 이는 임계값이 아니라 임베딩이 표면 의미에 끌리는 한계.
 
 ---
 
@@ -114,7 +129,7 @@ vector_search              3/7     43%         901         7
 1. **섹션 단위 로더가 두 축 모두 우위.** `hybrid`·`sqlite_fts_section`은 7/7 정확 + **657 토큰**으로, baseline `fs_direct`(1126) 대비 약 **42% 토큰 절감**. "섹션 단위 컨텍스트가 불필요 토큰을 줄인다"는 AGENTS.md 가설 입증.
 2. **문서 전체 FTS는 정확하지만 무겁다.** `sqlite_fts`는 7/7이지만 817 토큰 — 문서 전체를 싣기 때문. 섹션 조립이 결정적 차이.
 3. **6/7 그룹은 모호 요청에서만 갈린다.** 네 로더 모두 `req.loader.ambiguous`만 놓친다.
-4. **벡터 단독은 불안정(3/7).** non-obvious 오매칭을 만든다. `hybrid`는 벡터의 의미적 도달력을 유지하면서 메타데이터·FTS·우선순위·섹션 로딩을 결합해 정확도를 회복한다.
+4. **실제 임베딩으로 vector_search 개선(3/7 → 5/7).** semantic 매칭이 좋아져 의미 기반 요청을 해결했다. 다만 무관 요청의 false positive를 막으려면 provider별 임계값이 필수였고(해싱 기준 0.2는 실제 임베딩에 너무 느슨), 남은 2건은 임베딩 자체의 표면-의미 한계다. **`hybrid`는 벡터의 의미적 도달력을 유지하면서 메타데이터·FTS·우선순위·섹션 로딩으로 벡터 단독의 약점을 메운다** — 단독 5/7 vs 결합 7/7.
 
 **권장 로더:** `sqlite_fts_section` (의미적 도달력이 필요하면 `hybrid`) — 정확도 최고 + 토큰 최소.
 
@@ -122,10 +137,10 @@ vector_search              3/7     43%         901         7
 
 ## 4. 검증
 
-- `python -m pytest -q` → **46 passed** (기존 36 + 신규 10)
+- `python -m pytest -q` → **52 passed** (기존 36 + compare/Claude 10 + 임베딩 6)
 - `ruff check .` / `ruff format --check .` → 클린
-- `build-index --backend all` → 정상
-- 전체 스윕 트레이스 → **56 레코드, 8 로더, 전부 `llm_completed=True`, model=`claude-opus-4-8`**
+- `EMBEDDING_PROVIDER=openai build-index --backend vector` → 인덱스 `embedding_provider="openai"`, 1536차원
+- 최종 스윕 트레이스 → **56 레코드, 8 로더, 전부 `llm_completed=True`, LLM=`claude-opus-4-8`, vector 인덱스=openai**
 
 ---
 
@@ -134,3 +149,5 @@ vector_search              3/7     43%         901         7
 - Markdown이 source of truth — 로더는 소스를 수정하지 않고, `compare`는 트레이스만 읽는다.
 - 저비용 재실행은 `LLM_MODEL=claude-haiku-4-5`로 가능.
 - `.env`의 실제 API 키는 gitignore되어 커밋되지 않는다.
+- vector_search 임베딩 provider는 `EMBEDDING_PROVIDER`로 전환(`openai` 기본 / `hashing` 오프라인). provider 변경 시 `build-index --backend vector` 재빌드 필요. 임계값은 provider별 기본(hashing 0.2 / openai 0.28)이며 `EMBEDDING_MIN_SCORE`로 오버라이드.
+- OpenAI 임베딩은 호출 간 비트 단위 동일성을 보장하진 않으므로, 결정성 단위 테스트는 hashing 인덱스로 수행하고 openai 경로는 fake로 검증한다.

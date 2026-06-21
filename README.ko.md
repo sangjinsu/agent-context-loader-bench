@@ -72,10 +72,19 @@ python -m agent_loader_bench compare --trace .agentdb/traces.jsonl
 - `sqlite_fts`: 제목·설명·본문에 대한 SQLite 전문 검색(FTS).
 - `sqlite_fts_section`: 전문 검색으로 관련 섹션만 조립.
 - `json_document`: Markdown에서 파생한 구조화 JSON 문서 사용.
-- `vector_search`: 의미 기반 요청을 위한 결정적 벡터 유사 매칭.
+- `vector_search`: 문서와 쿼리를 임베딩해 코사인 유사도로 랭킹.
 - `hybrid`: 단순 전략들이 검증된 뒤 이들을 결합.
 
 Markdown 코퍼스가 바뀌면 인덱스는 명시적으로 재빌드해야 합니다.
+
+### 임베딩 (vector_search)
+
+`vector_search`는 `EMBEDDING_PROVIDER`로 임베딩 provider를 선택합니다.
+
+- `openai`(기본): `EMBEDDING_MODEL`(기본 `text-embedding-3-small`) 실제 임베딩. `build-index --backend vector|all`과 인덱스 로드에 `OPENAI_API_KEY` 필요.
+- `hashing`: 오프라인·결정적 feature-hashing(네트워크 없음) — 완전 오프라인 실행·재현 가능한 테스트용.
+
+인덱스에는 빌드에 사용한 provider/model이 기록되고, 로더는 동일 모델로 쿼리를 임베딩합니다. 따라서 provider를 바꾸면 인덱스를 재빌드해야 합니다.
 
 ## Live LLM 옵트인
 
