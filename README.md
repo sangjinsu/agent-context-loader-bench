@@ -1,5 +1,7 @@
 # Agent Context Loader Bench
 
+*English · [한국어](README.ko.md)*
+
 Agent Context Loader Bench compares how different context loading strategies affect a real LLM agent working from the same instruction corpus.
 
 The benchmark is about agent behavior, not raw database throughput. A useful loader should select the right skill text, avoid irrelevant tokens, keep behavior explainable, and help the agent complete the requested task reliably.
@@ -54,6 +56,12 @@ python -m agent_loader_bench run \
   --dataset datasets/requests.yml
 ```
 
+Compare loaders across a trace file (deduplicates by `run_id`, latest wins):
+
+```bash
+python -m agent_loader_bench compare --trace .agentdb/traces.jsonl
+```
+
 ## Loader Strategies
 
 The project compares these strategies against the same model, task dataset, and Markdown corpus:
@@ -64,10 +72,19 @@ The project compares these strategies against the same model, task dataset, and 
 - `sqlite_fts`: use SQLite full-text search over titles, descriptions, and bodies.
 - `sqlite_fts_section`: use full-text search and assemble only relevant sections.
 - `json_document`: use structured JSON documents derived from Markdown.
-- `vector_search`: use deterministic vector-like matching for semantic requests.
+- `vector_search`: embed documents and queries, rank by cosine similarity.
 - `hybrid`: combine simpler strategies after their behavior is tested.
 
 Indexes must be explicitly rebuilt when the Markdown corpus changes.
+
+### Embeddings (vector_search)
+
+`vector_search` uses an embedding provider selected by `EMBEDDING_PROVIDER`:
+
+- `openai` (default): real embeddings via `EMBEDDING_MODEL` (default `text-embedding-3-small`). `build-index --backend vector|all` and loading the index require `OPENAI_API_KEY`.
+- `hashing`: offline, deterministic feature-hashing (no network) — use for fully offline runs and reproducible tests.
+
+The index records the provider/model it was built with, and the loader embeds the query with that same model, so rebuild the index after changing the provider.
 
 ## Live LLM Opt-In
 
@@ -81,6 +98,8 @@ OPENAI_API_KEY=... python -m agent_loader_bench run \
 ```
 
 Use the same model, temperature, task dataset, and corpus when comparing loaders. Change only the loader strategy.
+
+The provider is inferred from `LLM_MODEL`: a `claude-*` model routes to the Anthropic client (`ANTHROPIC_API_KEY` and the `anthropic` extra required: `pip install -e '.[anthropic]'`); anything else uses OpenAI. Set `LLM_PROVIDER=openai|anthropic` to override. Claude models are called without sampling parameters (Opus 4.8 rejects `temperature`/`top_p`).
 
 ## Testing
 

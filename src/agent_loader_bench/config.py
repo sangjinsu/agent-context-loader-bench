@@ -9,8 +9,14 @@ from pathlib import Path
 class Settings:
     repo_root: Path
     openai_api_key: str | None
+    anthropic_api_key: str | None
+    llm_provider: str
     llm_model: str
     llm_temperature: float
+    embedding_provider: str
+    embedding_model: str
+    embedding_dimensions: int | None
+    embedding_min_score: float | None
     agentdb_path: Path
     trace_path: Path
 
@@ -18,14 +24,45 @@ class Settings:
 def load_settings(repo_root: Path | None = None) -> Settings:
     root = Path(repo_root or Path.cwd()).resolve()
     dotenv = _read_dotenv(root / ".env")
+    llm_model = _setting("LLM_MODEL", dotenv, "gpt-4.1-mini")
     return Settings(
         repo_root=root,
         openai_api_key=_optional_setting("OPENAI_API_KEY", dotenv),
-        llm_model=_setting("LLM_MODEL", dotenv, "gpt-4.1-mini"),
+        anthropic_api_key=_optional_setting("ANTHROPIC_API_KEY", dotenv),
+        llm_provider=_resolve_provider(_optional_setting("LLM_PROVIDER", dotenv), llm_model),
+        llm_model=llm_model,
         llm_temperature=float(_setting("LLM_TEMPERATURE", dotenv, "0")),
+        embedding_provider=_setting("EMBEDDING_PROVIDER", dotenv, "openai").strip().lower(),
+        embedding_model=_setting("EMBEDDING_MODEL", dotenv, "text-embedding-3-small"),
+        embedding_dimensions=_optional_int("EMBEDDING_DIMENSIONS", dotenv),
+        embedding_min_score=_optional_float("EMBEDDING_MIN_SCORE", dotenv),
         agentdb_path=_resolve_path(root, _setting("AGENTDB_PATH", dotenv, ".agentdb/index.sqlite")),
         trace_path=_resolve_path(root, _setting("TRACE_PATH", dotenv, ".agentdb/traces.jsonl")),
     )
+
+
+def _optional_int(name: str, dotenv: dict[str, str]) -> int | None:
+    value = _optional_setting(name, dotenv)
+    return int(value) if value else None
+
+
+def _optional_float(name: str, dotenv: dict[str, str]) -> float | None:
+    value = _optional_setting(name, dotenv)
+    return float(value) if value else None
+
+
+def _resolve_provider(explicit: str | None, model: str) -> str:
+    """Pick the LLM provider.
+
+    An explicit LLM_PROVIDER wins; otherwise infer from the model id so a
+    `claude-*` model routes to Anthropic and everything else to OpenAI.
+    """
+    if explicit:
+        provider = explicit.strip().lower()
+        if provider not in {"openai", "anthropic"}:
+            raise ValueError(f"Unsupported LLM_PROVIDER '{explicit}'. Choose 'openai' or 'anthropic'.")
+        return provider
+    return "anthropic" if model.lower().startswith("claude") else "openai"
 
 
 def _setting(name: str, dotenv: dict[str, str], default: str) -> str:

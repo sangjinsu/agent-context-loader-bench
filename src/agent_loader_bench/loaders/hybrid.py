@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from pathlib import Path
-from typing import Callable
+from typing import Any, Callable
 
 from .base import ContextLoader, LoadedContext, load_document_by_metadata
 from .fs_direct import FSDirectContextLoader
@@ -23,12 +23,14 @@ class HybridContextLoader(ContextLoader):
         metadata_index_path: Path | None = None,
         fts_index_path: Path | None = None,
         vector_index_path: Path | None = None,
+        settings: Any | None = None,
     ) -> None:
         super().__init__(repo_root)
         self.manifest_path = manifest_path or (self.repo_root / ".agentdb" / "manifest.json")
         self.metadata_index_path = metadata_index_path or (self.repo_root / ".agentdb" / "index.sqlite")
         self.fts_index_path = fts_index_path or (self.repo_root / ".agentdb" / "fts.sqlite")
         self.vector_index_path = vector_index_path or (self.repo_root / ".agentdb" / "vector" / "index.json")
+        self.settings = settings
 
     def load(self, request: str, task_type: str | None = None, top_k: int = 3) -> LoadedContext:
         fallbacks: list[str] = []
@@ -53,7 +55,9 @@ class HybridContextLoader(ContextLoader):
             ),
             (
                 "vector_search",
-                lambda: VectorContextLoader(self.repo_root, index_path=self.vector_index_path).load(
+                lambda: VectorContextLoader(
+                    self.repo_root, index_path=self.vector_index_path, settings=self.settings
+                ).load(
                     request,
                     task_type=task_type,
                     top_k=top_k,

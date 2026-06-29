@@ -260,7 +260,11 @@ def test_openai_client_accepts_api_key_from_settings(
     assert client.generate(instructions="rules", user_input="request") == "ok"
 
 
-def test_cli_build_manifest_and_all_indexes_create_expected_files(sample_runner_repo: Path) -> None:
+def test_cli_build_manifest_and_all_indexes_create_expected_files(
+    sample_runner_repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Keep the CLI build offline: the vector backend defaults to OpenAI embeddings.
+    monkeypatch.setenv("EMBEDDING_PROVIDER", "hashing")
     manifest_path = sample_runner_repo / ".agentdb" / "manifest.json"
 
     exit_code = main(

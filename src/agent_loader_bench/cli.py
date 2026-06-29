@@ -5,14 +5,16 @@ import json
 from pathlib import Path
 import sys
 
-from agent_loader_bench.config import load_settings
+from agent_loader_bench.config import Settings, load_settings
+from agent_loader_bench.embeddings import make_embedder
 from agent_loader_bench.loaders import (
-    build_deterministic_vector_index,
     build_json_document_store,
     build_manifest_index,
     build_sqlite_fts_index,
     build_sqlite_metadata_index,
+    build_vector_index,
 )
+from agent_loader_bench.report import aggregate_traces, format_table
 from agent_loader_bench.runner import inspect_request, run_dataset
 
 
@@ -29,7 +31,7 @@ def main(argv: list[str] | None = None, *, repo_root: Path | None = None) -> int
             return 0
 
         if args.command == "build-index":
-            created_paths = _build_indexes(resolved_root, args.backend)
+            created_paths = _build_indexes(resolved_root, args.backend, settings)
             for path in created_paths:
                 print(path)
             return 0
@@ -54,6 +56,12 @@ def main(argv: list[str] | None = None, *, repo_root: Path | None = None) -> int
                 settings=settings,
             )
             print(json.dumps(result, indent=2, sort_keys=True))
+            return 0
+
+        if args.command == "compare":
+            trace_path = Path(args.trace) if args.trace else settings.trace_path
+            stats = aggregate_traces(trace_path)
+            print(format_table(stats))
             return 0
 
         raise ValueError(f"Unknown command: {args.command}")
@@ -86,17 +94,29 @@ def build_parser() -> argparse.ArgumentParser:
     run_parser.add_argument("--dataset", default="datasets/requests.yml")
     run_parser.add_argument("--live-llm", action="store_true")
 
+    compare_parser = subparsers.add_parser("compare")
+    compare_parser.add_argument("--trace", default=None)
+
     return parser
 
 
-def _build_indexes(repo_root: Path, backend: str) -> list[Path]:
+def _build_indexes(repo_root: Path, backend: str, settings: Settings) -> list[Path]:
     agentdb_root = repo_root / ".agentdb"
     builders = {
         "manifest_json": lambda: build_manifest_index(repo_root, agentdb_root / "manifest.json"),
         "sqlite": lambda: build_sqlite_metadata_index(repo_root, agentdb_root / "index.sqlite"),
         "sqlite_fts": lambda: build_sqlite_fts_index(repo_root, agentdb_root / "fts.sqlite"),
         "json_document": lambda: build_json_document_store(repo_root, agentdb_root / "document_store.jsonl"),
-        "vector": lambda: build_deterministic_vector_index(repo_root, agentdb_root / "vector" / "index.json"),
+        "vector": lambda: build_vector_index(
+            repo_root,
+            agentdb_root / "vector" / "index.json",
+            make_embedder(
+                settings.embedding_provider,
+                settings.embedding_model,
+                api_key=settings.openai_api_key,
+                dimensions=settings.embedding_dimensions,
+            ),
+        ),
     }
 
     if backend == "all":
